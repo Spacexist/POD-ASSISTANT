@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Temu Image Downloader",
+  "version": "1.0.0",
+  "description": "悬停 Temu 商品图片，一键下载主图并以商品标题命名",
+  "permissions": [
+    "downloads",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.temu.com/*",
+    "https://img.kwcdn.com/*",
+    "https://aimg.kwcdn.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.temu.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_page": "options.html"
+}

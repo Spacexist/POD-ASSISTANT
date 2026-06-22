@@ -1,0 +1,74 @@
+/* content.css — 悬停下载按钮样式 */
+
+/* 下载按钮 */
+.temu-dl-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 9999;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 鼠标悬停在商品卡片上时显示按钮 */
+[data-temu-dl-inited]:hover .temu-dl-btn,
+[data-temu-dl-inited] [class*="goods-image-container"]:hover .temu-dl-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 鼠标悬停在按钮本身时 */
+.temu-dl-btn:hover {
+  opacity: 1 !important;
+  background: rgba(0, 0, 0, 0.82) !important;
+  transform: scale(1.1) !important;
+}
+
+/* 成功状态 */
+.temu-dl-btn--success {
+  background: rgba(34, 197, 94, 0.9) !important;
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+
+/* 失败状态 */
+.temu-dl-btn--error {
+  background: rgba(239, 68, 68, 0.9) !important;
+  opacity: 1 !important;
+  transform: scale(1) !important;
+}
+
+/* 加载中状态 */
+.temu-dl-btn--loading {
+  opacity: 1 !important;
+  transform: scale(1) !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  cursor: wait !important;
+}
+
+/* 加载旋转动画 */
+.temu-dl-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: temu-dl-spin 0.7s linear infinite;
+  display: block;
+}
+
+@keyframes temu-dl-spin {
+  to { transform: rotate(360deg); }
+}
