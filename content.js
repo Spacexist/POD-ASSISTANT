@@ -246,16 +246,16 @@ function injectDownloadButton(card) {
       }
 
       const filename = sanitizeFilename(title);
-      Logger.log('info', `准备发送下载请求: ${subfolder}/${filename}.jpg`);
 
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        // 发消息给 background.js 执行下载
+        // 发消息给 background.js 执行下载/缓存
         chrome.runtime.sendMessage(
           {
             action: 'downloadImage',
             url: imageUrl,
             filename: filename,
             subfolder: subfolder,
+            listing: title
           },
           (response) => {
             if (chrome.runtime.lastError) {
@@ -266,11 +266,16 @@ function injectDownloadButton(card) {
               }
               setButtonState(btn, 'error', '下载失败');
             } else if (response && !response.success) {
-              Logger.log('error', `下载执行失败: ${response.error}`);
+              Logger.log('error', `后台执行失败: ${response.error}`);
               setButtonState(btn, 'error', '下载失败');
             } else {
-              Logger.log('success', `下载任务已成功启动，文件: ${filename}.jpg`);
-              setButtonState(btn, 'success');
+              if (response && response.cachedCount !== undefined) {
+                Logger.log('success', `商品已成功加入缓存！当前总计已缓存: ${response.cachedCount} 个商品。`);
+                setButtonState(btn, 'success', `已加入缓存 (${response.cachedCount})`);
+              } else {
+                Logger.log('success', `本地下载任务已成功启动，文件将存为: ${filename}.jpg`);
+                setButtonState(btn, 'success');
+              }
             }
           }
         );

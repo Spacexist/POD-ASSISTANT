@@ -159,6 +159,61 @@
     .path-preview strong {
       color: #ff6b35;
     }
+
+    /* 工作模式选项样式 */
+    .mode-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .mode-option-card {
+      border: 1.5px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      transition: all 0.15s ease;
+    }
+
+    .mode-option-card:hover {
+      border-color: #ff6b35;
+      background: #fffbf9;
+    }
+
+    .mode-option-card.selected {
+      border-color: #ff6b35;
+      background: #fff7f2;
+      box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+    }
+
+    .mode-option-card input[type="radio"] {
+      margin-top: 3px;
+      accent-color: #ff6b35;
+      cursor: pointer;
+    }
+
+    .mode-option-info {
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+
+    .mode-option-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+
+    .mode-option-desc {
+      font-size: 11px;
+      color: #777;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -171,11 +226,33 @@
       </div>
       <div>
         <div class="card-title">Temu Image Downloader</div>
-        <div class="card-subtitle">设置下载文件夹</div>
+        <div class="card-subtitle">设置与工作模式</div>
       </div>
     </div>
 
+    <!-- 工作模式选择 -->
     <div class="form-group">
+      <label>工作模式</label>
+      <div class="mode-container">
+        <label class="mode-option-card" id="label-mode-local">
+          <input type="radio" name="mode" id="mode-local" value="local">
+          <div class="mode-option-info">
+            <span class="mode-option-title">本地下载模式</span>
+            <span class="mode-option-desc">提取图片并以商品标题命名，直接下载并保存到本地文件夹。</span>
+          </div>
+        </label>
+        <label class="mode-option-card" id="label-mode-cache">
+          <input type="radio" name="mode" id="mode-cache" value="cache" checked>
+          <div class="mode-option-info">
+            <span class="mode-option-title">缓存模式</span>
+            <span class="mode-option-desc">不直接下载图片，在后台保存商品标题与图片链接（JSON格式），可在插件面板随时导出。</span>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- 本地模式配置区域 -->
+    <div class="form-group" id="local-config-sec">
       <label for="subfolder">下载子文件夹名称</label>
       <input
         type="text"
@@ -188,10 +265,9 @@
         支持多级路径，如 <code>Temu/项目A</code><br>
         文件将保存至 Chrome 下载目录的此子文件夹中
       </div>
-    </div>
-
-    <div class="path-preview" id="path-preview">
-      📁 Chrome下载目录 / <strong>Temu</strong> / 商品标题.jpg
+      <div class="path-preview" id="path-preview" style="margin-top: 12px;">
+        📁 Chrome下载目录 / <strong>Temu</strong> / 商品标题.jpg
+      </div>
     </div>
 
     <hr class="divider" />

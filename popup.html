@@ -8,10 +8,10 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      width: 220px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #fff;
-      color: #1a1a1a;
+      width: 250px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #fdfdfd;
+      color: #1f2937;
     }
 
     .header {
@@ -40,51 +40,91 @@
     }
 
     .body {
-      padding: 14px 16px;
+      padding: 16px;
+    }
+
+    .section {
+      margin-bottom: 14px;
     }
 
     .info-label {
       font-size: 11px;
-      color: #888;
-      margin-bottom: 4px;
+      color: #6b7280;
+      margin-bottom: 5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .info-value {
       font-size: 13px;
-      color: #333;
+      color: #1f2937;
       font-weight: 500;
-      background: #f5f5f5;
-      border-radius: 6px;
-      padding: 7px 10px;
+      background: #f3f4f6;
+      border-radius: 8px;
+      padding: 8px 12px;
       word-break: break-all;
-      margin-bottom: 12px;
     }
 
-    .btn-settings {
+    .btn {
       display: block;
       width: 100%;
       padding: 9px;
-      background: #ff6b35;
-      color: white;
       border: none;
       border-radius: 8px;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
       text-align: center;
-      transition: background 0.15s;
+      transition: background 0.15s, transform 0.1s;
+      margin-bottom: 8px;
+      outline: none;
     }
 
-    .btn-settings:hover {
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: #ff6b35;
+      color: white;
+    }
+
+    .btn-primary:hover {
       background: #e55a28;
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
+    .btn-danger {
+      background: #fef2f2;
+      color: #ef4444;
+      border: 1px solid #fee2e2;
+    }
+
+    .btn-danger:hover {
+      background: #fee2e2;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #f3f4f6;
+      margin: 14px 0;
     }
 
     .tip {
       font-size: 10px;
-      color: #aaa;
+      color: #9ca3af;
       text-align: center;
-      margin-top: 10px;
       line-height: 1.4;
+      margin-top: 8px;
     }
   </style>
 </head>
@@ -99,12 +139,42 @@
   </div>
 
   <div class="body">
-    <div class="info-label">保存到</div>
-    <div class="info-value" id="current-folder">Temu</div>
+    <div class="section">
+      <div class="info-label">当前模式</div>
+      <div class="info-value" id="current-mode">本地模式 (直接下载)</div>
+    </div>
 
-    <button class="btn-settings" id="open-settings">⚙ 打开设置</button>
+    <!-- 本地模式下显示文件夹 -->
+    <div class="section" id="folder-section">
+      <div class="info-label">保存文件夹</div>
+      <div class="info-value" id="current-folder">Temu</div>
+    </div>
 
-    <p class="tip">悬停商品图片<br>点击下载按钮即可保存</p>
+    <!-- 缓存模式下显示缓存数和操作 -->
+    <div class="section" id="cache-section" style="display: none;">
+      <div class="info-label">缓存管理</div>
+      
+      <!-- 绑定 JSON 文件 -->
+      <div style="margin-bottom: 12px;">
+        <button class="btn btn-secondary" id="btn-select-json" style="margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+          📂 选择并绑定已有 JSON
+        </button>
+        <input type="file" id="input-file-json" accept=".json" style="display: none;">
+        <div id="bound-status" style="font-size: 11px; color: #059669; padding: 6px 8px; display: none; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; word-break: break-all;">
+          🟢 已绑定: <strong id="bound-filename">无</strong>
+        </div>
+      </div>
+
+      <div class="info-value" id="cache-count" style="margin-bottom: 8px;">已缓存商品: 0 个</div>
+      <button class="btn btn-primary" id="btn-export">📥 导出更新后的 JSON</button>
+      <button class="btn btn-danger" id="btn-clear-cache">🗑️ 清空缓存与绑定</button>
+    </div>
+
+    <hr class="divider">
+
+    <button class="btn btn-secondary" id="open-settings">⚙ 设置选项</button>
+
+    <p class="tip">悬停网页中商品图片<br>点击出现的下载图标即可操作</p>
   </div>
 
   <script src="popup.js"></script>
