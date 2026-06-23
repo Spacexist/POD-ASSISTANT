@@ -1,8 +1,4 @@
-// content.js — 注入 Temu 列表页 & 店铺页，添加悬停下载按钮
-// 支持页面类型：
-//   - https://www.temu.com/          （首页推荐列表）
-//   - https://www.temu.com/search*   （搜索结果）
-//   - https://www.temu.com/mall.html （店铺页商品列表）
+// content.js — 注入 Temu 列表页，添加悬停下载按钮
 
 // ─── 工具函数 ───────────────────────────────────────────────
 
@@ -15,104 +11,198 @@ function sanitizeFilename(title) {
     .substring(0, 100);
 }
 
+// ─── 调试日志面板 UI ──────────────────────────────────────────
+const Logger = {
+  panel: null,
+  content: null,
+
+  init() {
+    if (this.panel) return;
+
+    this.panel = document.createElement('div');
+    this.panel.className = 'temu-dl-log-panel';
+    this.panel.innerHTML = `
+      <div class="temu-dl-log-header">
+        <span class="temu-dl-log-title">Temu DL Logs</span>
+        <div class="temu-dl-log-actions">
+          <button class="temu-dl-log-btn" id="temu-dl-log-clear">Clear</button>
+          <button class="temu-dl-log-btn" id="temu-dl-log-hide">Minimize</button>
+        </div>
+      </div>
+      <div class="temu-dl-log-content"></div>
+    `;
+
+    document.body.appendChild(this.panel);
+    this.content = this.panel.querySelector('.temu-dl-log-content');
+
+    this.panel.querySelector('#temu-dl-log-clear').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.content.innerHTML = '';
+    });
+
+    const minimizeBtn = this.panel.querySelector('#temu-dl-log-hide');
+    let minimized = false;
+    minimizeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      minimized = !minimized;
+      if (minimized) {
+        this.content.style.display = 'none';
+        this.panel.style.height = 'auto';
+        this.panel.style.width = '180px';
+        minimizeBtn.textContent = 'Expand';
+      } else {
+        this.content.style.display = 'flex';
+        this.panel.style.height = '';
+        this.panel.style.width = '380px';
+        minimizeBtn.textContent = 'Minimize';
+      }
+    });
+  },
+
+  log(type, msg) {
+    this.init();
+    console.log(`[Temu DL] [${type}] ${msg}`);
+
+    const time = new Date().toTimeString().split(' ')[0];
+    const logLine = document.createElement('div');
+    logLine.className = `temu-dl-log-line temu-dl-log-line--${type}`;
+    logLine.textContent = `[${time}] ${msg}`;
+
+    this.content.appendChild(logLine);
+    this.content.scrollTop = this.content.scrollHeight;
+  }
+};
+
 /** 从商品卡片中提取商品标题 */
 function getTitle(card) {
-  // ① aria-label 最稳定（列表页 & mall 页通用）
-  const group = card.closest('[role="group"][aria-label]') || card;
-  const label = group.getAttribute('aria-label')?.trim();
-  if (label && label.length > 2) return label;
+  // 1. 优先使用 card 自身的 aria-label
+  if (card.hasAttribute('aria-label')) {
+    const label = card.getAttribute('aria-label').trim();
+    if (label) return label;
+  }
 
-  // ② data-tooltip-title（goodName 节点）
-  const tooltipEl = card.querySelector('[data-tooltip^="goodName-"]');
-  const tooltipTitle = tooltipEl?.getAttribute('data-tooltip-title')?.trim();
-  if (tooltipTitle && tooltipTitle.length > 2) return tooltipTitle;
+  // 2. 其次使用 card 内子元素的 aria-label
+  const group = card.querySelector('[role="group"][aria-label]');
+  if (group) {
+    const label = group.getAttribute('aria-label').trim();
+    if (label) return label;
+  }
 
-  // ③ h3 span 文字
+  // 3. 备选：h3 内的 span 文字
   const h3Span = card.querySelector('h3 span');
-  const spanText = h3Span?.innerText?.trim();
-  if (spanText && spanText.length > 2) return spanText;
+  if (h3Span && h3Span.innerText.trim()) return h3Span.innerText.trim();
 
-  // ④ a 标签 title 属性
-  const link = card.querySelector('a[href*="goods"]');
-  const linkTitle = link?.getAttribute('title')?.trim();
-  if (linkTitle && linkTitle.length > 2) return linkTitle;
+  // 4. 备选：a 标签的 title 或 alt
+  const aLink = card.querySelector('a[title]');
+  if (aLink && aLink.getAttribute('title').trim()) return aLink.getAttribute('title').trim();
 
-  // ⑤ 兜底
+  // 兜底
   return `temu_${Date.now()}`;
+}
+
+/** 从商品卡片中提取主图 URL（最高清版本） */
+function getImageUrl(card) {
+  // 辅助函数：将任何相对路径/绝对路径转为完整URL，并过滤掉 base64
+  const resolveUrl = (src) => {
+    if (!src || src.includes('data:image')) return null;
+    try {
+      return new URL(src, document.baseURI).href;
+    } catch (_) {
+      return src;
+    }
+  };
+
+  // ① 优先从 data-js-main-img="true" 的图片中提取
+  let mainImg = card.querySelector('img[data-js-main-img="true"]');
+  if (mainImg) {
+    const src = resolveUrl(mainImg.src || mainImg.getAttribute('src'));
+    if (src) return upgradeImageQuality(src);
+  }
+
+  // ② 其次尝试其它可能是商品大图的 img（类名为 lazy-image 或 wxWpAMbp 等）
+  const imgSelectors = [
+    'img.lazy-image',
+    'img.wxWpAMbp',
+    'img[src*="product/"]',
+    'img[src*="local-goods-image/"]',
+    'img[src*="fancy/"]',
+    'img[src*="kwcdn"]'
+  ];
+  for (const sel of imgSelectors) {
+    const img = card.querySelector(sel);
+    if (img) {
+      const src = resolveUrl(img.src || img.getAttribute('src'));
+      if (src) return upgradeImageQuality(src);
+    }
+  }
+
+  // ③ 尝试从商品链接的 URL query 参数中抓取 top_gallery_url
+  const goodsLink = card.querySelector('a[href*="goods.html"], a[href*="-g-"], a[href*="goods_id"]');
+  if (goodsLink) {
+    try {
+      const href = goodsLink.getAttribute('href');
+      const resolvedHref = resolveUrl(href);
+      if (resolvedHref) {
+        const url = new URL(resolvedHref);
+        const galleryUrl = url.searchParams.get('top_gallery_url');
+        if (galleryUrl) {
+          return upgradeImageQuality(decodeURIComponent(galleryUrl));
+        }
+      }
+    } catch (_) {}
+  }
+
+  // ④ 兜底：获取卡片中任何有效 img
+  const anyImg = card.querySelector('img');
+  if (anyImg) {
+    const src = resolveUrl(anyImg.src || anyImg.getAttribute('src'));
+    if (src) return upgradeImageQuality(src);
+  }
+
+  return null;
 }
 
 /** 将图片 URL 升级为原图最高质量 */
 function upgradeImageQuality(url) {
+  if (!url) return '';
+  // 如果是本地测试的 file:// url，不修改，避免 404
+  if (url.startsWith('file://')) {
+    return url;
+  }
   try {
     const u = new URL(url);
-    // ① 去掉所有 query 参数（Temu 七牛云 CDN 用 ?imageView2/2/w/238 限制尺寸）
+
+    // ① 去掉所有 query 参数
+    //    Temu CDN 通过 ?imageView2/2/w/238/q/70/format/webp 限制尺寸
+    //    去掉后直接返回原图
     u.search = '';
-    // ② 去掉路径里的 _NNNxNNN 尺寸后缀
+
+    // ② 去掉路径里的 _NNNxNNN 尺寸后缀（部分 URL 用这种方式）
     u.pathname = u.pathname.replace(/_\d+x\d+[^./]*/g, '');
-    // ③ .webp → .jpg 确保下载后可直接打开
+
+    // ③ 把 .webp 换成 .jpg，保证下载后能直接打开
     if (u.pathname.toLowerCase().endsWith('.webp')) {
       u.pathname = u.pathname.slice(0, -5) + '.jpg';
     }
+
     return u.toString();
   } catch (_) {
+    // URL 解析失败时兜底：至少去掉 query string
     return url.split('?')[0];
   }
-}
-
-/** 从商品卡片中提取主图 URL */
-function getImageUrl(card) {
-  // ① data-js-main-img（列表页首选）
-  const mainImg = card.querySelector('img[data-js-main-img="true"]');
-  if (mainImg) {
-    const src = mainImg.src || mainImg.getAttribute('src') || '';
-    if (src.startsWith('https://')) return upgradeImageQuality(src);
-  }
-
-  // ② goods.html 链接里的 top_gallery_url 参数（mall 页 & 列表页通用）
-  const goodsLink = card.querySelector('a[href*="goods_id"], a[href*="goods.html"]');
-  if (goodsLink) {
-    try {
-      const href = goodsLink.getAttribute('href');
-      const url = new URL(href, location.origin);
-      const galleryUrl = url.searchParams.get('top_gallery_url');
-      if (galleryUrl) return upgradeImageQuality(decodeURIComponent(galleryUrl));
-    } catch (_) {}
-  }
-
-  // ③ data-tooltip-title 在 goodsImage 节点上有时包含图片 URL 信息
-  const imgTooltip = card.querySelector('[data-tooltip^="goodsImage-"]');
-  const tooltipSrc = imgTooltip?.querySelector('img')?.src;
-  if (tooltipSrc && tooltipSrc.startsWith('https://')) {
-    return upgradeImageQuality(tooltipSrc);
-  }
-
-  // ④ 兜底：卡片内任意 kwcdn.com 图片
-  const anyImg = card.querySelector('img[src*="kwcdn.com"]');
-  if (anyImg?.src) return upgradeImageQuality(anyImg.src);
-
-  return null;
 }
 
 // ─── 注入下载按钮 ───────────────────────────────────────────
 
 function injectDownloadButton(card) {
-  // 找图片容器 —— 多种选择器兼容列表页和 mall 页
-  let imgContainer = card.querySelector(
-    '[class*="goods-image-container"], [class*="goods-img-external"], [class*="goods-img"]'
-  );
-
-  // 如果找不到容器，退而求其次：找第一个包含 img 的相对/绝对定位元素
-  if (!imgContainer) {
-    imgContainer = card.querySelector('[class*="OdRhMCvs"], [class*="_1KPRonPK"]');
-  }
-
-  // 实在找不到就用 card 自身作为容器（确保按钮能显示）
-  if (!imgContainer) {
-    imgContainer = card;
-  }
+  // 找到图片容器，用于相对定位，并带有多种类名兜底，最后以 card 本身为兜底
+  const imgContainer = card.querySelector(
+    '[class*="goods-image-container"], [class*="goods-img"], .OdRhMCvs, ._1UrrHYym'
+  ) || card;
 
   // 确保容器有相对定位
-  if (getComputedStyle(imgContainer).position === 'static') {
+  const containerStyle = getComputedStyle(imgContainer);
+  if (containerStyle.position === 'static') {
     imgContainer.style.position = 'relative';
   }
 
@@ -130,52 +220,70 @@ function injectDownloadButton(card) {
     e.stopPropagation();
     e.preventDefault();
 
-    // 从 card 或其父级 group 获取完整上下文
-    const context = card.closest('[role="group"][aria-label]') || card;
-    const imageUrl = getImageUrl(context);
-    const title    = getTitle(context);
+    Logger.log('info', '点击下载按钮，开始分析商品卡片...');
+    const title = getTitle(card);
+    const imageUrl = getImageUrl(card);
 
-    // ── 调试日志（可在 chrome://extensions → 检查视图 → content script 里看到）
-    console.log('[Temu DL] imageUrl:', imageUrl);
-    console.log('[Temu DL] title:', title);
+    Logger.log('info', `提取商品标题: "${title}"`);
+    Logger.log('info', `提取图片 URL: ${imageUrl || '未找到'}`);
 
     if (!imageUrl) {
-      setButtonState(btn, 'error', '无法获取图片URL，请按F12查看控制台');
+      Logger.log('error', '获取商品图片 URL 失败！请联系开发者更新。');
+      setButtonState(btn, 'error', '无法获取图片');
       return;
     }
 
     setButtonState(btn, 'loading');
 
     try {
-      const result = await chrome.storage.sync.get('subfolder');
-      const subfolder = result.subfolder || 'Temu';
-      const filename  = sanitizeFilename(title);
+      // 兼容性检查：如果 chrome 相关的 API 未定义（非插件上下文中运行，如直接本地引入 JS 或控制台运行）
+      let subfolder = 'Temu';
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        try {
+          const res = await chrome.storage.sync.get('subfolder');
+          if (res && res.subfolder) subfolder = res.subfolder;
+        } catch (_) {}
+      }
 
-      chrome.runtime.sendMessage(
-        {
-          action: 'downloadImage',
-          url: imageUrl,
-          filename: filename,
-          subfolder: subfolder,
-        },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            const err = chrome.runtime.lastError.message;
-            console.error('[Temu DL] sendMessage error:', err);
-            setButtonState(btn, 'error', err);
-            return;
+      const filename = sanitizeFilename(title);
+      Logger.log('info', `准备发送下载请求: ${subfolder}/${filename}.jpg`);
+
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        // 发消息给 background.js 执行下载
+        chrome.runtime.sendMessage(
+          {
+            action: 'downloadImage',
+            url: imageUrl,
+            filename: filename,
+            subfolder: subfolder,
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              const errMsg = chrome.runtime.lastError.message;
+              Logger.log('error', `后台通讯失败: ${errMsg}`);
+              if (location.protocol === 'file:') {
+                Logger.log('warn', '提示：检测到当前为本地静态页面 (file://)，若要正常下载，请务必在 chrome://extensions 页面勾选本扩展的【允许访问文件网址】。');
+              }
+              setButtonState(btn, 'error', '下载失败');
+            } else if (response && !response.success) {
+              Logger.log('error', `下载执行失败: ${response.error}`);
+              setButtonState(btn, 'error', '下载失败');
+            } else {
+              Logger.log('success', `下载任务已成功启动，文件: ${filename}.jpg`);
+              setButtonState(btn, 'success');
+            }
           }
-          if (response && !response.success) {
-            console.error('[Temu DL] Download error:', response.error);
-            setButtonState(btn, 'error', response.error || '下载失败');
-            return;
-          }
-          setButtonState(btn, 'success');
-        }
-      );
+        );
+      } else {
+        Logger.log('warn', '检测到未运行在扩展上下文（例如直接注入网页中）。将尝试新标签页打开图片直接进行预览下载：');
+        Logger.log('success', `大图地址: ${imageUrl}`);
+        window.open(imageUrl, '_blank');
+        setButtonState(btn, 'success');
+      }
     } catch (err) {
-      console.error('[Temu DL] Exception:', err.message);
-      setButtonState(btn, 'error', err.message);
+      Logger.log('error', `任务触发异常: ${err.message}`);
+      console.error('[Temu DL]', err);
+      setButtonState(btn, 'error', '下载失败');
     }
   });
 
@@ -187,31 +295,39 @@ function setButtonState(btn, state, tooltip) {
   btn.className = `temu-dl-btn temu-dl-btn--${state}`;
   if (tooltip) btn.title = tooltip;
 
-  const downloadIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>`;
-  const checkIcon   = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
-  const crossIcon   = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
-
   if (state === 'loading') {
     btn.innerHTML = `<span class="temu-dl-spinner"></span>`;
     return;
   }
+
   if (state === 'success') {
-    btn.innerHTML = checkIcon;
-    setTimeout(() => { btn.className = 'temu-dl-btn'; btn.title = '下载图片'; btn.innerHTML = downloadIcon; }, 1800);
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>`;
+    setTimeout(() => {
+      btn.className = 'temu-dl-btn';
+      btn.title = '下载图片';
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>`;
+    }, 1800);
     return;
   }
+
   if (state === 'error') {
-    btn.innerHTML = crossIcon;
-    setTimeout(() => { btn.className = 'temu-dl-btn'; btn.title = '下载图片'; btn.innerHTML = downloadIcon; }, 2000);
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`;
+    setTimeout(() => {
+      btn.className = 'temu-dl-btn';
+      btn.title = '下载图片';
+      btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white" width="16" height="16"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>`;
+    }, 2000);
   }
 }
 
 // ─── 扫描并注入 ─────────────────────────────────────────────
 
 function scanAndInject() {
-  document.querySelectorAll(
-    'div[role="group"][aria-label]:not([data-temu-dl-inited])'
-  ).forEach((card) => {
+  // Temu 商品卡片：基于 role="group" 或特殊的 Ois68FAW 类名
+  const cards = document.querySelectorAll(
+    'div[role="group"][aria-label]:not([data-temu-dl-inited]), div.Ois68FAW:not([data-temu-dl-inited])'
+  );
+  cards.forEach((card) => {
     card.setAttribute('data-temu-dl-inited', '1');
     injectDownloadButton(card);
   });
@@ -220,6 +336,9 @@ function scanAndInject() {
 // 初始扫描
 scanAndInject();
 
-// MutationObserver 监听无限滚动 / 动态加载
-const observer = new MutationObserver(() => scanAndInject());
+// MutationObserver 处理无限滚动动态加载的商品
+const observer = new MutationObserver(() => {
+  scanAndInject();
+});
+
 observer.observe(document.body, { childList: true, subtree: true });
