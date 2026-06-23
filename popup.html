@@ -147,7 +147,11 @@
     <!-- 本地模式下显示文件夹 -->
     <div class="section" id="folder-section">
       <div class="info-label">保存文件夹</div>
-      <div class="info-value" id="current-folder">Temu</div>
+      <div class="info-value" id="current-folder" style="margin-bottom: 8px;">Temu</div>
+      <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #4b5563; background: #f3f4f6; border-radius: 6px; padding: 6px 10px;">
+        <span>本地下载序号计数器: <strong id="local-count-val" style="color: #ff6b35;">0</strong></span>
+        <button class="btn btn-secondary" id="btn-reset-local-count" style="margin: 0; padding: 2px 8px; font-size: 10px; width: auto; height: auto; border: 1px solid #d1d5db;">重置</button>
+      </div>
     </div>
 
     <!-- 缓存模式下显示缓存数和操作 -->

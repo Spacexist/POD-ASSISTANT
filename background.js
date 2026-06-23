@@ -10,28 +10,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const mode = res.mode || 'cache';
 
       if (mode === 'local') {
-        // 本地模式：直接下载
-        const folder = (subfolder || 'Temu').replace(/\\/g, '/').replace(/\/$/, '');
-        const safeName = filename || `temu_${Date.now()}`;
-        const downloadPath = `${folder}/${safeName}.jpg`;
+        // 本地模式：读取本地序号计数器，递增后下载
+        chrome.storage.local.get(['local_download_count'], (localRes) => {
+          const currentCount = (localRes.local_download_count || 0) + 1;
 
-        chrome.downloads.download(
-          {
-            url: url,
-            filename: downloadPath,
-            conflictAction: 'uniquify',
-            saveAs: false,
-          },
-          (downloadId) => {
-            if (chrome.runtime.lastError) {
-              console.error('[Temu DL] Download failed:', chrome.runtime.lastError.message);
-              sendResponse({ success: false, error: chrome.runtime.lastError.message });
-            } else {
-              console.log('[Temu DL] Download started, id:', downloadId);
-              sendResponse({ success: true, downloadId });
-            }
-          }
-        );
+          chrome.storage.local.set({ local_download_count: currentCount }, () => {
+            const seqStr = String(currentCount).padStart(3, '0');
+            const folder = (subfolder || 'Temu').replace(/\\/g, '/').replace(/\/$/, '');
+            const safeName = filename || `temu_${Date.now()}`;
+            const downloadPath = `${folder}/${seqStr}-${safeName}.jpg`;
+
+            chrome.downloads.download(
+              {
+                url: url,
+                filename: downloadPath,
+                conflictAction: 'uniquify',
+                saveAs: false,
+              },
+              (downloadId) => {
+                if (chrome.runtime.lastError) {
+                  console.error('[Temu DL] Download failed:', chrome.runtime.lastError.message);
+                  sendResponse({ success: false, error: chrome.runtime.lastError.message });
+                } else {
+                  console.log('[Temu DL] Download started, id:', downloadId);
+                  const finalFileName = `${seqStr}-${safeName}.jpg`;
+                  sendResponse({ success: true, downloadId, finalFileName });
+                }
+              }
+            );
+          });
+        });
       } else {
         // 缓存模式：保存 JSON 数据至 local storage
         chrome.storage.local.get(['cached_items'], (localRes) => {
@@ -51,9 +59,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const seqStr = String(items.length + 1).padStart(4, '0');
             const idStr = `${timeStr}_${seqStr}`;
 
+            // 在 listing 前面加一个 3 位递增数前缀，如 001-
+            const prefixSeq = String(items.length + 1).padStart(3, '0');
+            const prefixedListing = `${prefixSeq}-${listing}`;
+
             items.push({
               "编号": idStr,
-              "listing": listing,
+              "listing": prefixedListing,
               "imageurl": url
             });
           }

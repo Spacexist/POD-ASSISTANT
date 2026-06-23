@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const cacheCountVal = document.getElementById('cache-count');
   const btnExport = document.getElementById('btn-export');
   const btnClearCache = document.getElementById('btn-clear-cache');
+  const btnResetLocalCount = document.getElementById('btn-reset-local-count');
+  const localCountVal = document.getElementById('local-count-val');
 
   const btnSelectJson = document.getElementById('btn-select-json');
   const inputFileJson = document.getElementById('input-file-json');
@@ -17,13 +19,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 读取并更新显示状态
   async function updateUI() {
     const { mode = 'cache', subfolder = 'Temu' } = await chrome.storage.sync.get(['mode', 'subfolder']);
-    const { cached_items = [], bound_filename = '' } = await chrome.storage.local.get(['cached_items', 'bound_filename']);
+    const { cached_items = [], bound_filename = '', local_download_count = 0 } = await chrome.storage.local.get(['cached_items', 'bound_filename', 'local_download_count']);
 
     if (mode === 'local') {
       modeVal.textContent = '本地模式 (直接下载)';
       folderSec.style.display = 'block';
       folderVal.textContent = subfolder;
       cacheSec.style.display = 'none';
+      if (localCountVal) {
+        localCountVal.textContent = local_download_count;
+      }
     } else {
       modeVal.textContent = '缓存模式 (保存为JSON)';
       folderSec.style.display = 'none';
@@ -41,6 +46,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 初始载入
   await updateUI();
+
+  // 重置本地计数器
+  if (btnResetLocalCount) {
+    btnResetLocalCount.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (confirm('确定要将本地下载序号计数器重置为 0 吗？')) {
+        await chrome.storage.local.set({ local_download_count: 0 });
+        await updateUI();
+      }
+    });
+  }
 
   // 触发 file input
   btnSelectJson.addEventListener('click', () => {
