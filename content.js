@@ -133,18 +133,23 @@ function injectDownloadButton(card) {
     // 从 card 或其父级 group 获取完整上下文
     const context = card.closest('[role="group"][aria-label]') || card;
     const imageUrl = getImageUrl(context);
-    const title = getTitle(context);
+    const title    = getTitle(context);
+
+    // ── 调试日志（可在 chrome://extensions → 检查视图 → content script 里看到）
+    console.log('[Temu DL] imageUrl:', imageUrl);
+    console.log('[Temu DL] title:', title);
 
     if (!imageUrl) {
-      setButtonState(btn, 'error', '无法获取图片');
+      setButtonState(btn, 'error', '无法获取图片URL，请按F12查看控制台');
       return;
     }
 
     setButtonState(btn, 'loading');
 
     try {
-      const { subfolder = 'Temu' } = await chrome.storage.sync.get('subfolder');
-      const filename = sanitizeFilename(title);
+      const result = await chrome.storage.sync.get('subfolder');
+      const subfolder = result.subfolder || 'Temu';
+      const filename  = sanitizeFilename(title);
 
       chrome.runtime.sendMessage(
         {
@@ -154,16 +159,23 @@ function injectDownloadButton(card) {
           subfolder: subfolder,
         },
         (response) => {
-          if (chrome.runtime.lastError || (response && !response.success)) {
-            setButtonState(btn, 'error', '下载失败');
-          } else {
-            setButtonState(btn, 'success');
+          if (chrome.runtime.lastError) {
+            const err = chrome.runtime.lastError.message;
+            console.error('[Temu DL] sendMessage error:', err);
+            setButtonState(btn, 'error', err);
+            return;
           }
+          if (response && !response.success) {
+            console.error('[Temu DL] Download error:', response.error);
+            setButtonState(btn, 'error', response.error || '下载失败');
+            return;
+          }
+          setButtonState(btn, 'success');
         }
       );
     } catch (err) {
-      console.error('[Temu DL]', err);
-      setButtonState(btn, 'error', '下载失败');
+      console.error('[Temu DL] Exception:', err.message);
+      setButtonState(btn, 'error', err.message);
     }
   });
 
