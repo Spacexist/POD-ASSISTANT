@@ -1,4 +1,4 @@
-# 🛍️ Temu Image Downloader
+# 🛍️ Temu Image Downloader[已废弃]
 
 > 一个 Chrome 浏览器插件，悬停 Temu 商品图片，一键下载原图并以商品标题自动命名。
 
